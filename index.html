@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive UK Kitchen Packing Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Earth -->
+    <!-- Application Structure Plan: A dashboard-style SPA. The top section features interactive filters (by packing action and category) and a dynamic summary panel with key stats (total items, weight, cost) and a weight distribution chart. The main section displays items as filterable cards for better readability and mobile experience. This structure turns a static list into an active decision-making tool, allowing the user to immediately see the weight/cost impact of their packing choices, which is the primary user goal. -->
+    <!-- Visualization & Content Choices: 1. Summary Stats: Goal is to inform the user of the overall packing load. Presented as HTML/CSS cards, updated via JS on filter change. 2. Weight Distribution Chart: Goal is to compare the weight contribution of different categories. Presented as a Chart.js donut chart, which is ideal for showing part-to-whole relationships. It updates dynamically with filters. 3. Item List: Goal is to organize and present detailed item information. Presented as a responsive flexbox layout of cards. JS dynamically renders the cards based on active filters, using color-coded indicators for quick recognition of the packing action. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF7;
+            color: #4A4A4A;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .filter-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .filter-btn.active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">UK Kitchen Packing Planner</h1>
+            <p class="mt-2 text-lg text-gray-600">Your Interactive Guide to Packing Smart</p>
+        </header>
+
+        <main>
+            <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-bold text-gray-700 mb-4">Packing Filters</h2>
+                <div class="flex flex-wrap gap-3 mb-6">
+                    <button id="filter-all" class="filter-btn active text-sm font-semibold py-2 px-4 rounded-full bg-blue-500 text-white" data-filter-group="action" data-filter-value="all">Show All</button>
+                    <button class="filter-btn text-sm font-semibold py-2 px-4 rounded-full bg-green-100 text-green-800" data-filter-group="action" data-filter-value="✅ TAKE">✅ Take (High Priority)</button>
+                    <button class="filter-btn text-sm font-semibold py-2 px-4 rounded-full bg-yellow-100 text-yellow-800" data-filter-group="action" data-filter-value="🤔 TAKE (Optional)">🤔 Take (Optional)</button>
+                    <button class="filter-btn text-sm font-semibold py-2 px-4 rounded-full bg-indigo-100 text-indigo-800" data-filter-group="action" data-filter-value="👍 STARTER PACK">👍 Starter Pack</button>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                     <button id="filter-cat-all" class="filter-btn active text-sm font-semibold py-2 px-4 rounded-full bg-gray-600 text-white" data-filter-group="category" data-filter-value="all">All Categories</button>
+                    <button class="filter-btn text-sm font-semibold py-2 px-4 rounded-full bg-gray-200 text-gray-700" data-filter-group="category" data-filter-value="Utensils & Appliances">🍳 Utensils & Appliances</button>
+                    <button class="filter-btn text-sm font-semibold py-2 px-4 rounded-full bg-gray-200 text-gray-700" data-filter-group="category" data-filter-value="Spices & Masalas">🌶️ Spices & Masalas</button>
+                    <button class="filter-btn text-sm font-semibold py-2 px-4 rounded-full bg-gray-200 text-gray-700" data-filter-group="category" data-filter-value="Dry Goods & Packaged Foods">📦 Dry Goods</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                 <h2 class="text-xl font-bold text-gray-700 mb-4 text-center">Dynamic Packing Summary</h2>
+                 <p class="text-center text-gray-500 mb-6">This dashboard updates automatically as you apply filters. It helps you see the real-time impact of your packing choices on total weight and cost.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-center">
+                    <div class="lg:col-span-1 flex flex-col gap-4">
+                        <div class="bg-blue-50 p-5 rounded-xl text-center">
+                            <p class="text-sm font-medium text-blue-600">Total Items to Pack</p>
+                            <p id="total-items" class="text-3xl font-bold text-blue-800">0</p>
+                        </div>
+                        <div class="bg-green-50 p-5 rounded-xl text-center">
+                            <p class="text-sm font-medium text-green-600">Estimated Weight</p>
+                            <p id="total-weight" class="text-3xl font-bold text-green-800">0 kg</p>
+                        </div>
+                        <div class="bg-yellow-50 p-5 rounded-xl text-center">
+                            <p class="text-sm font-medium text-yellow-600">Estimated Cost</p>
+                            <p id="total-cost" class="text-3xl font-bold text-yellow-800">₹0</p>
+                        </div>
+                    </div>
+                    <div class="md:col-span-1 lg:col-span-2">
+                        <div class="chart-container">
+                            <canvas id="weight-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-red-50 border-l-4 border-red-500 rounded-r-lg p-6 mb-8 shadow-lg">
+                <h2 class="text-xl font-bold text-red-800 mb-4">🚫 Prohibited Items: What NOT to Pack</h2>
+                <p class="text-red-700 mb-4">To ensure a smooth journey and avoid issues with airline security and UK customs, you **cannot** pack the following items in your luggage.</p>
+                <ul class="space-y-3">
+                    <li class="flex items-start">
+                        <span class="text-lg mr-3">🍎</span>
+                        <div>
+                            <strong class="text-red-800">Fresh Food & Produce:</strong>
+                            <p class="text-red-700 text-sm">Includes all fresh fruits (e.g., mangoes), vegetables (e.g., fresh chillies, curry leaves), meat, fish, and dairy products (e.g., homemade paneer, ghee, or cheese). These are restricted for biosecurity reasons.</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-lg mr-3">🔥</span>
+                        <div>
+                            <strong class="text-red-800">Flammable Items:</strong>
+                            <p class="text-red-700 text-sm">Includes items like lighter fluid, matchboxes, cooking spray, flammable liquids, and most aerosols. These are strictly forbidden in both check-in and cabin baggage.</p>
+                        </div>
+                    </li>
+                     <li class="flex items-start">
+                        <span class="text-lg mr-3">🔪</span>
+                        <div>
+                            <strong class="text-red-800">Sharp Objects (in Cabin Baggage):</strong>
+                            <p class="text-red-700 text-sm">While you can pack kitchen knives, peelers, and scissors in your **check-in luggage**, they are strictly not allowed in your hand baggage for security reasons.</p>
+                        </div>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-lg mr-3">🌱</span>
+                        <div>
+                            <strong class="text-red-800">Plants & Seeds:</strong>
+                            <p class="text-red-700 text-sm">Includes live plants (like a curry plant sapling), seeds intended for planting (e.g., methi or mustard seeds for a garden), and bulbs. These are restricted to prevent introducing foreign diseases.</p>
+                        </div>
+                    </li>
+                </ul>
+                <p class="mt-4 text-sm text-red-600 font-semibold">When in doubt, it's always best to leave it behind or check the official airline and UK government websites before you pack.</p>
+            </div>
+
+            <div id="item-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </div>
+        </main>
+
+        <footer class="text-center mt-12 py-4 border-t">
+            <p class="text-gray-500">Designed to make your move to the UK a little easier. Happy packing!</p>
+        </footer>
+
+    </div>
+
+    <script>
+        const kitchenData = [
+            { category: "Utensils & Appliances", name: "Pressure Cooker", quantity: "1 (2-3 Litres)", weight: 1750, price: 2000, action: "✅ TAKE", notes: "MUST BE INDUCTION COMPATIBLE. Get a Hard Anodised Aluminium model (Prestige/Hawkins) as it's lighter than steel." },
+            { category: "Utensils & Appliances", name: "Mixer Grinder", quantity: "1 (Compact 500W)", weight: 3000, price: 2750, action: "🤔 TAKE (Optional)", notes: "Worth it ONLY if you frequently grind masalas. It's heavy. A Wonderchef Nutri-blend is a great lightweight alternative." },
+            { category: "Utensils & Appliances", name: "Tawa (for Roti)", quantity: "1 (Small)", weight: 600, price: 950, action: "✅ TAKE", notes: "Get a hard anodised or non-stick aluminium tawa, not a heavy cast iron one." },
+            { category: "Utensils & Appliances", name: "Rolling Pin & Board", quantity: "1 Set (Small)", weight: 500, price: 300, action: "✅ TAKE", notes: "Very lightweight and essential. Buy a thin, cheap wooden set from a local Thane market." },
+            { category: "Utensils & Appliances", name: "Tongs (Pakkad/Chimta)", quantity: "1", weight: 100, price: 100, action: "✅ TAKE", notes: "Essential for making rotis. Lightweight and cheap." },
+            { category: "Utensils & Appliances", name: "Tea Strainer (Chhalni)", quantity: "1", weight: 50, price: 80, action: "✅ TAKE", notes: "The fine mesh Indian-style ones are often better." },
+            { category: "Utensils & Appliances", name: "Knives & Peeler", quantity: "1-2 small knives, 1 peeler", weight: 200, price: 300, action: "✅ TAKE", notes: "Small, light, and useful from day one. Pack them securely in your check-in luggage." },
+            { category: "Utensils & Appliances", name: "Masala Dabba (Spice Box)", quantity: "1", weight: 400, price: 400, action: "✅ TAKE", notes: "The best way to organize your essential spices. Fill it with your spices before you pack it to save space." },
+            { category: "Utensils & Appliances", name: "Kadhai / Frying Pan", quantity: "0", weight: 1250, price: 0, action: "❌ DO NOT TAKE", notes: "Very heavy. Widely and cheaply available in the UK. Buy a basic non-stick set for ~£25." },
+            { category: "Utensils & Appliances", name: "Plates, Bowls, Cups", quantity: "0", weight: 2000, price: 0, action: "❌ DO NOT TAKE", notes: "Heavy and fragile. Buy a cheap starter set from IKEA or a supermarket." },
+            { category: "Utensils & Appliances", name: "Spoons, Ladles, Spatula", quantity: "1-2 of each", weight: 500, price: 500, action: "🤔 TAKE (Optional)", notes: "A few key pieces are fine if you have space. A good wooden spatula is a good item to carry." },
+            { category: "Utensils & Appliances", name: "Cutting Board", quantity: "0", weight: 500, price: 0, action: "❌ DO NOT TAKE", notes: "Bulky and cheap to buy in the UK." },
+            { category: "Spices & Masalas", name: "Garam Masala", quantity: "200g", weight: 200, price: 150, action: "✅ TAKE", notes: "Your home brand's taste is unique." },
+            { category: "Spices & Masalas", name: "Turmeric (Haldi)", quantity: "200g", weight: 200, price: 50, action: "✅ TAKE", notes: "Essential." },
+            { category: "Spices & Masalas", name: "Red Chilli Powder", quantity: "200g", weight: 200, price: 80, action: "✅ TAKE", notes: "Get the specific type (e.g., Kashmiri) you prefer." },
+            { category: "Spices & Masalas", name: "Coriander Powder", quantity: "200g", weight: 200, price: 60, action: "✅ TAKE", notes: "Core ingredient." },
+            { category: "Spices & Masalas", name: "Cumin Powder", quantity: "200g", weight: 200, price: 70, action: "✅ TAKE", notes: "Core ingredient." },
+            { category: "Spices & Masalas", name: "Asafoetida (Hing)", quantity: "50g", weight: 50, price: 100, action: "✅ TAKE", notes: "Can be expensive and harder to find in the UK." },
+            { category: "Spices & Masalas", name: "Mustard/Cumin Seeds", quantity: "100g each", weight: 200, price: 50, action: "✅ TAKE", notes: "Essential for tadka." },
+            { category: "Spices & Masalas", name: "Tea Masala (Chai)", quantity: "100g", weight: 100, price: 120, action: "✅ TAKE", notes: "Nothing beats your favourite brand for a good chai." },
+            { category: "Spices & Masalas", name: "Other Masalas", quantity: "1-2 packets", weight: 200, price: 100, action: "✅ TAKE", notes: "Any special blends (Pav Bhaji, Chole, Sambhar etc.)" },
+            { category: "Dry Goods & Packaged Foods", name: "Dals & Legumes", quantity: "500g total", weight: 500, price: 100, action: "👍 STARTER PACK", notes: "Take a small mix (e.g., Toor, Moong) for the first week. All dals are easily available in UK supermarkets." },
+            { category: "Dry Goods & Packaged Foods", name: "Atta (Flour)", quantity: "0 - 1kg", weight: 1000, price: 60, action: "👍 STARTER PACK", notes: "Only if you have space. Brands like Aashirvaad and Elephant Atta are sold everywhere in the UK." },
+            { category: "Dry Goods & Packaged Foods", name: "Rice", quantity: "0 - 1kg", weight: 1000, price: 120, action: "👍 STARTER PACK", notes: "A small bag of your preferred Basmati. Widely available in the UK." },
+            { category: "Dry Goods & Packaged Foods", name: "Poha / Rava", quantity: "500g", weight: 500, price: 50, action: "✅ TAKE", notes: "Lightweight and perfect for a quick, familiar breakfast." },
+            { category: "Dry Goods & Packaged Foods", name: "Ready-to-Eat Meals", quantity: "4-5 packets", weight: 1500, price: 400, action: "✅ TAKE", notes: "Lifesavers for the first few tired days of settling in. MTR, Haldiram's etc. are great." },
+            { category: "Dry Goods & Packaged Foods", name: "Maggi (Masala)", quantity: "1-2 multipacks", weight: 500, price: 150, action: "✅ TAKE", notes: "The Indian masala flavour is superior. A student classic." },
+            { category: "Dry Goods & Packaged Foods", name: "Papad", quantity: "2 packets", weight: 400, price: 100, action: "✅ TAKE", notes: "Very lightweight and great for a quick meal side." },
+            { category: "Dry Goods & Packaged Foods", name: "Pickle (Achar)", quantity: "1 small bottle", weight: 300, price: 80, action: "✅ TAKE", notes: "MUST be commercially sealed. Wrap it in multiple bags to prevent leaks." },
+            { category: "Dry Goods & Packaged Foods", name: "Ghee", quantity: "1 small pack", weight: 500, price: 350, action: "✅ TAKE", notes: "Your home brand is best. Get a 500ml tetra pack or a well-sealed tin, not a glass jar." },
+            { category: "Dry Goods & Packaged Foods", name: "Oil, Sugar, Salt", quantity: "0", weight: 0, price: 0, action: "❌ DO NOT TAKE", notes: "Heavy, cheap, and the first things you should buy there." },
+            { category: "Dry Goods & Packaged Foods", name: "Besan, Maida", quantity: "0", weight: 0, price: 0, action: "❌ DO NOT TAKE", notes: "Available in all South Asian stores and many supermarkets." }
+        ];
+
+        const itemList = document.getElementById('item-list');
+        const totalItemsEl = document.getElementById('total-items');
+        const totalWeightEl = document.getElementById('total-weight');
+        const totalCostEl = document.getElementById('total-cost');
+        const filterButtons = document.querySelectorAll('.filter-btn');
+
+        let weightChart;
+        let currentFilters = {
+            action: 'all',
+            category: 'all'
+        };
+
+        const actionColors = {
+            '✅ TAKE': 'border-green-500',
+            '🤔 TAKE (Optional)': 'border-yellow-500',
+            '👍 STARTER PACK': 'border-indigo-500',
+            '❌ DO NOT TAKE': 'border-red-500'
+        };
+        
+        const actionTextColors = {
+            '✅ TAKE': 'text-green-700 bg-green-100',
+            '🤔 TAKE (Optional)': 'text-yellow-700 bg-yellow-100',
+            '👍 STARTER PACK': 'text-indigo-700 bg-indigo-100',
+            '❌ DO NOT TAKE': 'text-red-700 bg-red-100'
+        };
+
+        function renderItems(items) {
+            itemList.innerHTML = '';
+            if (items.length === 0) {
+                itemList.innerHTML = `<div class="col-span-1 md:col-span-2 lg:col-span-3 text-center text-gray-500 py-10">
+                    <p class="text-xl">No items match your filters.</p>
+                    <p>Try selecting a different filter option.</p>
+                </div>`;
+                return;
+            }
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `bg-white rounded-xl shadow-md overflow-hidden border-l-4 ${actionColors[item.action] || 'border-gray-300'}`;
+                card.innerHTML = `
+                    <div class="p-5">
+                        <div class="flex justify-between items-start">
+                            <h3 class="text-lg font-bold text-gray-800">${item.name}</h3>
+                            <span class="text-xs font-semibold px-3 py-1 rounded-full ${actionTextColors[item.action] || 'text-gray-700 bg-gray-100'}">${item.action}</span>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-3">${item.category}</p>
+                        <div class="flex justify-between text-sm text-gray-700 mb-4">
+                            <span><strong>Weight:</strong> ${item.weight}g</span>
+                            <span><strong>Cost:</strong> ₹${item.price}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">${item.notes}</p>
+                    </div>
+                `;
+                itemList.appendChild(card);
+            });
+        }
+
+        function updateSummary(items) {
+            const itemsToPack = items.filter(item => item.action !== '❌ DO NOT TAKE');
+            
+            const totalWeight = itemsToPack.reduce((sum, item) => sum + item.weight, 0);
+            const totalCost = itemsToPack.reduce((sum, item) => sum + item.price, 0);
+
+            totalItemsEl.textContent = itemsToPack.length;
+            totalWeightEl.textContent = `${(totalWeight / 1000).toFixed(2)} kg`;
+            totalCostEl.textContent = `₹${totalCost.toLocaleString('en-IN')}`;
+        }
+
+        function updateChart(items) {
+            const itemsToPack = items.filter(item => item.action !== '❌ DO NOT TAKE');
+            const categoryWeights = itemsToPack.reduce((acc, item) => {
+                const category = item.category === 'Dry Goods & Packaged Foods' ? 'Dry Goods' : item.category;
+                acc[category] = (acc[category] || 0) + item.weight;
+                return acc;
+            }, {});
+
+            const labels = Object.keys(categoryWeights);
+            const data = Object.values(categoryWeights);
+
+            if (weightChart) {
+                weightChart.data.labels = labels;
+                weightChart.data.datasets[0].data = data;
+                weightChart.update();
+            } else {
+                const ctx = document.getElementById('weight-chart').getContext('2d');
+                weightChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Weight (g)',
+                            data: data,
+                            backgroundColor: [
+                                'rgba(59, 130, 246, 0.7)',
+                                'rgba(239, 68, 68, 0.7)',
+                                'rgba(245, 158, 11, 0.7)',
+                                'rgba(16, 185, 129, 0.7)'
+                            ],
+                            borderColor: [
+                                'rgba(59, 130, 246, 1)',
+                                'rgba(239, 68, 68, 1)',
+                                'rgba(245, 158, 11, 1)',
+                                'rgba(16, 185, 129, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Weight Distribution by Category (for Packed Items)'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += `${(context.parsed / 1000).toFixed(2)} kg`;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function applyFilters() {
+            let filteredData = kitchenData;
+
+            if (currentFilters.action !== 'all') {
+                if (currentFilters.action === '✅ TAKE') {
+                    filteredData = filteredData.filter(item => item.action.includes('✅ TAKE'));
+                } else {
+                     filteredData = filteredData.filter(item => item.action === currentFilters.action);
+                }
+            }
+            
+            if (currentFilters.category !== 'all') {
+                filteredData = filteredData.filter(item => item.category === currentFilters.category);
+            }
+            
+            const itemsToDisplay = filteredData.filter(item => item.action !== '❌ DO NOT TAKE');
+            
+            renderItems(filteredData);
+            updateSummary(filteredData);
+            updateChart(filteredData);
+        }
+
+        filterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const group = button.dataset.filterGroup;
+                const value = button.dataset.filterValue;
+
+                currentFilters[group] = value;
+
+                document.querySelectorAll(`.filter-btn[data-filter-group="${group}"]`).forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                button.classList.add('active');
+                
+                if (value === 'all') {
+                   document.getElementById(group === 'action' ? 'filter-all' : 'filter-cat-all').classList.add('active');
+                } else {
+                    document.getElementById(group === 'action' ? 'filter-all' : 'filter-cat-all').classList.remove('active');
+                }
+
+                applyFilters();
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            applyFilters();
+        });
+
+    </script>
+</body>
+</html>
